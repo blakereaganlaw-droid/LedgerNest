@@ -1,0 +1,375 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// --- Better Auth ---
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  profileSettings     ProfileSettings?
+  financialAccounts   FinancialAccount[]
+  transactions        Transaction[]
+  recurringItems      RecurringItem[]
+  budgetMonths        BudgetMonth[]
+  categoryNodes       CategoryNode[]
+  goals               Goal[]
+  debtPlans           DebtPlan[]
+  dashboardWidgets    DashboardWidget[]
+  auditEvents         AuditEvent[]
+  paycheckSchedules   PaycheckSchedule[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+}
+
+// --- Enums ---
+
+enum AccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  CASH
+  INVESTMENT
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum BudgetPeriodStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum WidgetMetricType {
+  MONTH_INCOME
+  MONTH_SPEND
+  MONTH_REMAINING
+  CATEGORY_SPEND
+  ACCOUNT_BALANCE
+  GOAL_PROGRESS
+  CUSTOM_TOTAL
+}
+
+enum AuditEventType {
+  USER_LOGIN_SUCCESS
+  USER_LOGIN_FAILURE
+  PASSWORD_CHANGE
+  ACCOUNT_CREATE
+  ACCOUNT_ARCHIVE
+  CATEGORY_CREATE
+  CATEGORY_UPDATE
+  CATEGORY_ARCHIVE
+  BUDGET_PUBLISH
+  BUDGET_UPDATE
+  RECORD_ARCHIVE
+  RECORD_DELETE
+  TRANSACTION_CREATE
+  WIDGET_CREATE
+}
+
+enum PaycheckFrequency {
+  WEEKLY
+  BIWEEKLY
+  SEMIMONTHLY
+  MONTHLY
+}
+
+// --- App models ---
+
+model ProfileSettings {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  user                User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timezone            String  @default("America/New_York")
+  locale              String  @default("en-US")
+  allowNegativeRollover Boolean @default(false)
+  displayName         String?
+}
+
+model FinancialAccount {
+  id           String      @id @default(cuid())
+  userId       String
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  type         AccountType
+  balanceCents BigInt      @default(0)
+  isArchived   Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  snapshots    AccountBalanceSnapshot[]
+  transactions Transaction[]
+
+  @@index([userId])
+  @@index([userId, isArchived])
+}
+
+model AccountBalanceSnapshot {
+  id           String           @id @default(cuid())
+  accountId    String
+  account      FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  balanceCents BigInt
+  recordedAt   DateTime         @default(now())
+
+  @@index([accountId])
+}
+
+model CategoryNode {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  depth      Int
+  parentId   String?
+  parent     CategoryNode?  @relation("CategoryToCategory", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children   CategoryNode[] @relation("CategoryToCategory")
+  isSystem   Boolean        @default(false)
+  isArchived Boolean        @default(false)
+  slug       String?
+
+  transactions Transaction[]
+  budgetLines  BudgetLine[]
+
+  @@index([userId])
+  @@index([parentId])
+  @@index([userId, isArchived])
+}
+
+model Transaction {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId   String
+  account     FinancialAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    CategoryNode?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  type        TransactionType
+  amountCents BigInt
+  memo        String?
+  date        DateTime
+  isArchived  Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  splits TransactionSplit[]
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([accountId])
+  @@index([categoryId])
+}
+
+model TransactionSplit {
+  id            String      @id @default(cuid())
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  amountCents   BigInt
+  memo          String?
+
+  @@index([transactionId])
+}
+
+model RecurringItem {
+  id            String              @id @default(cuid())
+  userId        String
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  amountCents   BigInt
+  frequency     RecurrenceFrequency
+  nextDueDate   DateTime
+  categoryId    String?
+  accountId     String?
+  isArchived    Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([userId])
+  @@index([userId, nextDueDate])
+}
+
+model BudgetMonth {
+  id         String             @id @default(cuid())
+  userId     String
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  year       Int
+  month      Int
+  status     BudgetPeriodStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  lines BudgetLine[]
+
+  @@unique([userId, year, month])
+  @@index([userId])
+}
+
+model BudgetLine {
+  id              String       @id @default(cuid())
+  budgetMonthId   String
+  budgetMonth     BudgetMonth  @relation(fields: [budgetMonthId], references: [id], onDelete: Cascade)
+  categoryId      String
+  category        CategoryNode @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  allocatedCents  BigInt       @default(0)
+  rolloverCents   BigInt       @default(0)
+  spentCents      BigInt       @default(0)
+
+  @@unique([budgetMonthId, categoryId])
+  @@index([budgetMonthId])
+}
+
+model Goal {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  targetCents   BigInt
+  currentCents  BigInt   @default(0)
+  isRetirement  Boolean  @default(false)
+  isArchived    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contributions GoalContribution[]
+
+  @@index([userId])
+}
+
+model GoalContribution {
+  id          String   @id @default(cuid())
+  goalId      String
+  goal        Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  amountCents BigInt
+  contributedAt DateTime @default(now())
+  memo        String?
+
+  @@index([goalId])
+}
+
+model DebtPlan {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  principalCents     BigInt
+  aprBps             Int
+  minimumPaymentCents BigInt
+  extraPaymentCents  BigInt   @default(0)
+  isArchived         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model PaycheckSchedule {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  frequency   PaycheckFrequency
+  anchorDate  DateTime
+  amountCents BigInt?
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model DashboardWidget {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  metricType  WidgetMetricType
+  layoutOrder Int              @default(0)
+  configJson  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userId])
+}
+
+model AuditEvent {
+  id          String         @id @default(cuid())
+  userId      String?
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type        AuditEventType
+  actorEmail  String?
+  ipAddress   String?
+  userAgent   String?
+  contextJson String?
+  createdAt   DateTime       @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
