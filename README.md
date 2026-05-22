@@ -2,6 +2,8 @@
 
 Private, manual-entry household budget app. Built for Vercel with Prisma Postgres, Better Auth, and Next.js App Router.
 
+**Repository:** https://github.com/blakereaganlaw-droid/LedgerNest
+
 ## Requirements
 
 - Node.js **20.9+**
