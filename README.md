@@ -61,12 +61,14 @@ pnpm dev
 
 ## Vercel deployment
 
-1. Create a Vercel project linked to this repo.
-2. Add **Prisma Postgres** from the Marketplace; attach `DATABASE_URL` and `DIRECT_URL`.
-3. Set environment variables:
-   - `BETTER_AUTH_SECRET`
-   - `APP_URL` — production URL (e.g. `https://ledgernest.vercel.app`)
-4. Deploy. `postinstall` runs `prisma generate` automatically.
+1. Create a Vercel project linked to this repo: https://github.com/blakereaganlaw-droid/LedgerNest
+2. Add **Prisma Postgres** from the Marketplace; attach `DATABASE_URL` (pooled) and `DIRECT_URL` (direct).
+3. Set environment variables **before the first deploy** (Production + Preview):
+   - `DATABASE_URL` — pooled Postgres URL from Vercel/Prisma integration
+   - `DIRECT_URL` — direct URL for migrations (same integration)
+   - `BETTER_AUTH_SECRET` — `openssl rand -base64 32`
+   - `APP_URL` — production URL (e.g. `https://your-app.vercel.app`)
+4. Deploy. `postinstall` runs `prisma generate` (uses placeholder URLs only if env vars are missing at install time).
 5. Run migrations against production (CI or local with production `DIRECT_URL`):
 
 ```bash
