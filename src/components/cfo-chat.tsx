@@ -65,6 +65,14 @@ export function CfoChat({ configured }: { configured: boolean }) {
         return;
       }
 
+      // A 200 that isn't our text stream means auth redirected us to the
+      // login page (session expired); don't render the HTML as a reply.
+      if (!(res.headers.get("content-type") ?? "").includes("text/plain")) {
+        setError("Your session may have expired. Reload the page and sign in again.");
+        setMessages(outgoing);
+        return;
+      }
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let assistantText = "";
@@ -76,6 +84,9 @@ export function CfoChat({ configured }: { configured: boolean }) {
         setMessages([...outgoing, { role: "assistant", content: snapshot }]);
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
       }
+      // Flush any bytes buffered across the final chunk boundary.
+      assistantText += decoder.decode();
+      setMessages([...outgoing, { role: "assistant", content: assistantText }]);
 
       if (assistantText.trim() === "") {
         setError("The assistant returned an empty response.");
@@ -165,6 +176,7 @@ export function CfoChat({ configured }: { configured: boolean }) {
           }}
           placeholder="Ask your Household CFO…"
           rows={3}
+          maxLength={8000}
           disabled={busy}
           className="flex w-full rounded-md border border-border bg-muted px-3 py-2 text-sm disabled:opacity-50"
           data-testid="cfo-input"

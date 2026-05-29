@@ -16,12 +16,17 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MAX_USER_INPUT_CHARS = 8000;
+
 const BodySchema = z.object({
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
-        content: z.string().min(1).max(8000),
+        // Assistant turns (the structured 7-section answers) are long and get
+        // resent as history, so the cap must accommodate them — not just the
+        // user's input, which is bounded separately in the UI.
+        content: z.string().min(1).max(60000),
       }),
     )
     .min(1)
@@ -59,6 +64,14 @@ export async function POST(request: Request) {
   if (messages[0].role !== "user") {
     return NextResponse.json(
       { error: "Conversation must begin with a user message." },
+      { status: 400 },
+    );
+  }
+
+  const newest = messages[messages.length - 1];
+  if (newest.role === "user" && newest.content.length > MAX_USER_INPUT_CHARS) {
+    return NextResponse.json(
+      { error: `Message is too long (max ${MAX_USER_INPUT_CHARS} characters).` },
       { status: 400 },
     );
   }
