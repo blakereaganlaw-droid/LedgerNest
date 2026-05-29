@@ -12,6 +12,7 @@ import {
   Target,
   CreditCard,
   CalendarClock,
+  Bot,
   Settings,
   Menu,
 } from "lucide-react";
@@ -28,6 +29,7 @@ const nav = [
   { href: "/goals", label: "Goals", icon: Target },
   { href: "/debts", label: "Debts", icon: CreditCard },
   { href: "/recurring", label: "Recurring", icon: CalendarClock },
+  { href: "/cfo", label: "CFO", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
